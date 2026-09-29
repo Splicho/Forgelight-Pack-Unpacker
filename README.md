@@ -36,7 +36,9 @@ cd pack-unpacker
 ```
 
 That runs the tests, then writes `packer.exe` and `unpacker.exe` into the repo
-root.
+root. A release build is byte-identical to what you get locally, so you can
+build from the same commit and check your download against the published
+`SHA256SUMS.txt`.
 
 ## Using it
 
@@ -163,3 +165,22 @@ The suite builds small valid archives in memory rather than committing binary
 fixtures, and covers the round trip, CRC detection, resume behavior, the path
 traversal guard, determinism, and the 4 GiB format ceiling. The full test suite
 runs in about a second.
+
+## Releases
+
+A release is cut by pushing a tag:
+
+```powershell
+git tag v1.1.0
+git push origin v1.1.0
+```
+
+`.github/workflows/release.yml` builds both binaries on Windows, runs the tests
+first so a failing suite stops the release, checks that each binary starts, and
+attaches the files plus a `SHA256SUMS.txt` to a GitHub release with generated
+notes for whatever changed since the previous tag.
+
+Tags that are not `v<major>.<minor>.<patch>` are ignored, so a scratch tag
+stays local. Re-pushing an existing tag does nothing, which protects a published
+release from being quietly replaced: to change a released build, cut a new
+version.

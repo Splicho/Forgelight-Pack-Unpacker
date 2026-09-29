@@ -35,7 +35,12 @@ $targets = @(
 
 foreach ($t in $targets) {
     Write-Host "Building $($t.Exe)..." -ForegroundColor Cyan
-    go build -ldflags '-s -w' -o $t.Exe "./$($t.Dir)"
+    # -trimpath strips the local build paths out of the binary. It is here, and
+    # not just in the release workflow, so that a build made on your machine is
+    # byte-identical to the one published to GitHub Releases: same commit, same
+    # checksums. Without it the two differ by a few KB and that comparison is
+    # not possible.
+    go build -trimpath -ldflags '-s -w' -o $t.Exe "./$($t.Dir)"
 
     if ($LASTEXITCODE -ne 0) { throw "build failed: $($t.Exe)" }
 }

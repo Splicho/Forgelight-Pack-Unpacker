@@ -1,0 +1,151 @@
+name: release
+
+# Cutting a release is pushing a tag:
+#
+#   git tag v1.2.0 && git push origin v1.2.0
+#
+# This workflow builds both binaries from that exact commit, runs the tests
+# first so a red suite stops the release, and attaches the results to a GitHub
+# release. Doing it this way means v1.0.0 and every later version are cut by
+# the same pipeline, so the process is exercised from the very first release
+# instead of being written once and trusted.
+#
+# A tag that is not v<semver> is ignored: git tags also get used for throwaway
+# markers, and those should not become public releases.
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: build and publish
+    runs-on: windows-latest
+
+    steps:
+      - name: Check out the tagged commit
+        uses: actions/checkout@v4
+        with:
+          # Full history, so the generated release notes can name the commits
+          # since the previous tag rather than just this one.
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          # Takes the version from go.mod, so this never drifts out of step
+          # with what the project actually declares it needs.
+          go-version-file: go.mod
+          check-latest: true
+
+      - name: Show the version
+        run: |
+          $tag = $env:GITHUB_REF_NAME
+          Write-Host "Tag:  $tag"
+          Write-Host "Go:   $(go version)"
+          Write-Host "Arch: $env:RUNNER_ARCH"
+
+      - name: Run the tests
+        # A release is not cut from a commit whose tests fail. This is the
+        # whole point of building on a machine that can run them.
+        run: go test ./...
+
+      - name: Build both binaries
+        run: |
+          # These are the exact flags build.ps1 uses, and that is not a
+          # coincidence: it is what makes a release byte-identical to a build
+          # made on your own machine, so the checksums below can be checked
+          # against a local build. Verified, not assumed: both paths produce
+          # the same SHA-256.
+          #
+          # -trimpath strips local build paths out of the binary.
+          # -ldflags '-s -w' drops the symbol table and DWARF data, roughly
+          # halving the download without changing behavior.
+          go build -trimpath -ldflags '-s -w' -o packer.exe   ./cmd/packer
+          go build -trimpath -ldflags '-s -w' -o unpacker.exe ./cmd/unpacker
+
+      - name: Smoke test the built binaries
+        # A file that builds can still fail to start, and a release that ships
+        # a broken exe is worse than no release. Both are asked for their help
+        # text, which exercises startup, the flag parser and the console layer.
+        # -h exits non-zero by design, so the output is what is checked, not
+        # the exit code.
+        run: |
+          # Resolved to a full path on purpose: PowerShell will not run a bare
+          # 'packer.exe' out of the current directory, and a check that cannot
+          # run would fail every release.
+          foreach ($name in 'packer.exe', 'unpacker.exe') {
+            $exe = (Resolve-Path ".\$name").Path
+            Write-Host "== $name =="
+
+            $out = & $exe -h 2>&1 | Out-String
+            Write-Host $out
+
+            if ($out -notmatch 'usage:') {
+              throw "$name did not print a usage line, so it is not runnable"
+            }
+          }
+
+      - name: Checksum the binaries
+        run: |
+          # Lets a user confirm they downloaded the files this release built,
+          # rather than something that went wrong in transit.
+          $sums = foreach ($exe in 'packer.exe', 'unpacker.exe') {
+            $h = (Get-FileHash $exe -Algorithm SHA256).Hash.ToLower()
+            "$h  $exe"
+          }
+          $sums | Set-Content -Encoding ascii SHA256SUMS.txt
+          $sums | ForEach-Object { Write-Host $_ }
+
+      - name: Create the release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = $env:GITHUB_REF_NAME
+          $notes = @"
+          ## Two tools, one direction each
+
+          | Tool | Drag onto it | You get |
+          | --- | --- | --- |
+          | ``unpacker.exe`` | a ``.pack`` file | a folder of files beside it |
+          | ``packer.exe`` | a folder | a ``.pack`` beside it, subfolders and all |
+
+          Standalone Windows binaries, no runtime to install. Drop the right one
+          on the job; there are no flags to set and nothing to configure.
+
+          ### Options
+
+          ```
+          unpacker.exe [-force] [-verify] [-o dir] [-dry-run] [-quiet] <pack.pack> ...
+          packer.exe   [-o dir] [-dry-run] [-quiet] <folder> ...
+          ```
+
+          - ``-verify`` checks the CRC32 of every entry as it is written.
+          - ``-force`` overwrites files instead of skipping matching ones, so
+            re-running resumes rather than starting over.
+          - ``-o dir`` writes output into one folder instead of beside each input.
+
+          ### Verify your download
+
+          ```
+          Get-FileHash packer.exe -Algorithm SHA256
+          ```
+
+          and compare against ``SHA256SUMS.txt`` in the assets below.
+
+          Built from ``$env:GITHUB_SHA``.
+          "@
+
+          gh release create $tag `
+            --title $tag `
+            --notes $notes `
+            --generate-notes `
+            --verify-tag `
+            packer.exe `
+            unpacker.exe `
+            SHA256SUMS.txt
