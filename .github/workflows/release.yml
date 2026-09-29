@@ -28,19 +28,24 @@ jobs:
 
     steps:
       - name: Check out the tagged commit
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           # Full history, so the generated release notes can name the commits
           # since the previous tag rather than just this one.
           fetch-depth: 0
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v7
         with:
           # Takes the version from go.mod, so this never drifts out of step
           # with what the project actually declares it needs.
           go-version-file: go.mod
           check-latest: true
+          # This project has no dependencies, so there is no go.sum and nothing
+          # to cache. Saying so up front keeps the "dependencies file not
+          # found" warning out of the run, and means the action will not start
+          # looking for one.
+          cache: false
 
       - name: Show the version
         run: |
