@@ -1,4 +1,4 @@
-# pack-unpacker
+# ForgeLight .pack unpack-packer
 
 Two small Windows tools for ForgeLight `.pack` asset archives. One takes a
 folder apart, the other puts it back together.
