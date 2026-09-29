@@ -30,8 +30,8 @@ standalone binaries with no runtime to install.
 To build from source you need [Go](https://go.dev) 1.23 or newer:
 
 ```powershell
-git clone https://github.com/Splicho/pack-unpacker.git
-cd pack-unpacker
+git clone https://github.com/Splicho/Forgelight-Pack-Unpacker.git
+cd Forgelight-Pack-Unpacker
 .\build.ps1
 ```
 
