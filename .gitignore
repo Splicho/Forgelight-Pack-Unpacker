@@ -1,0 +1,4 @@
+*.exe
+*.pack
+/out/
+/Assets_027/
