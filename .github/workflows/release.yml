@@ -56,15 +56,13 @@ jobs:
 
       - name: Build both binaries
         run: |
-          # These are the exact flags build.ps1 uses, and that is not a
-          # coincidence: it is what makes a release byte-identical to a build
-          # made on your own machine, so the checksums below can be checked
-          # against a local build. Verified, not assumed: both paths produce
-          # the same SHA-256.
-          #
-          # -trimpath strips local build paths out of the binary.
-          # -ldflags '-s -w' drops the symbol table and DWARF data, roughly
-          # halving the download without changing behavior.
+          # These are the exact flags build.ps1 uses, so a release is the same
+          # program a local build produces. They are not necessarily the same
+          # bytes, and the difference is the Go version: this job pins the one
+          # go.mod declares, so a machine on a newer Go will produce a
+          # different binary from the same commit. -trimpath strips local build
+          # paths out, and -ldflags '-s -w' drops the symbol table and DWARF
+          # data, roughly halving the download without changing behavior.
           go build -trimpath -ldflags '-s -w' -o packer.exe   ./cmd/packer
           go build -trimpath -ldflags '-s -w' -o unpacker.exe ./cmd/unpacker
 
@@ -136,9 +134,12 @@ jobs:
           Get-FileHash packer.exe -Algorithm SHA256
           ```
 
-          and compare against ``SHA256SUMS.txt`` in the assets below.
+          and compare against ``SHA256SUMS.txt`` in the assets below. This
+          confirms the file reached you intact. Building from source will not
+          match these hashes unless you use Go 1.23, the version this release
+          was built with.
 
-          Built from ``$env:GITHUB_SHA``.
+          Built from ``$env:GITHUB_SHA`` with Go 1.23.
           "@
 
           gh release create $tag `

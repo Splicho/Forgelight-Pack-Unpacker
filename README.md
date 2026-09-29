@@ -36,9 +36,20 @@ cd Forgelight-Pack-Unpacker
 ```
 
 That runs the tests, then writes `packer.exe` and `unpacker.exe` into the repo
-root. A release build is byte-identical to what you get locally, so you can
-build from the same commit and check your download against the published
-`SHA256SUMS.txt`.
+root.
+
+### Checking a download
+
+Every release ships a `SHA256SUMS.txt`:
+
+```powershell
+Get-FileHash packer.exe -Algorithm SHA256
+```
+
+A release is built by CI on Go 1.23, the version `go.mod` declares, so a
+binary built with a different Go release will not match it byte for byte even
+from the same commit. `go version` tells you which you used. If you want to
+reproduce a published build exactly, use Go 1.23.
 
 ## Using it
 
